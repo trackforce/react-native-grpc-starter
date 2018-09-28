@@ -6,7 +6,7 @@ import { providers } from './config';
 import Router from './config/router';
 
 configure({
-    enforceActions: true
+    enforceActions: 'observed'
 });
 
 const DefaultApp = () => (

@@ -1,15 +1,10 @@
 import {
-    createSwitchNavigator
+    createStackNavigator
 } from 'react-navigation';
 import { DebugScreen } from '../screens/DebugScreen';
 
-const Router = createSwitchNavigator(
-    {
-        Initial: DebugScreen
-    },
-    {
-        initialRouteName: 'Initial'
-    }
-);
+const App = createStackNavigator({
+    Home: { screen: DebugScreen }
+});
 
-export default Router;
+export default App;

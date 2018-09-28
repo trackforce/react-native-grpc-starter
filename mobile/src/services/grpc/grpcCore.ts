@@ -123,7 +123,7 @@ export class GrpcCore {
      * Listen to GrpcNative stream events
      */
     private _initializeListeners() {
-        const nativeStream = new NativeEventEmitter(NativeModules.RNGrpcEventEmitter);
+        const nativeStream = new NativeEventEmitter(NativeModules.ReactNativeEventEmitter);
         // TODO: unsubscrbibe !!!
         nativeStream.addListener(GrpcEvents.grpcStreamReceive, (e: GrpcNativeStreamEvent) => {
             if (!e) {

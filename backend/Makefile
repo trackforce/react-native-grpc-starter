@@ -9,7 +9,10 @@ BASEIMAGE=alpine
 BUILD_IMAGE ?= golang:1.10.3-alpine
 
 start:
-	docker run --rm -p 10000:10000 rnbackend
+	docker run -it -p 10000:10000 rnbackend
+
+container: build
+	@docker build -t rnbackend -f Dockerfile .
 
 build:
 	@docker run \
@@ -21,6 +24,3 @@ build:
 		-v "$$(pwd)/src/do:/go/src/do" \
 	    -w /go/ \
 	    golang:1.10.3-alpine go install ./src/do/cmd/server/...
-
-container: build
-	@docker build -t rnbackend -f Dockerfile .

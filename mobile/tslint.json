@@ -43,7 +43,7 @@
     "no-bitwise": true,
     "jsx-no-multiline-js": false,
     "jsx-boolean-value": false,
-    "no-console": { "severity": "warn" },
+    "no-console": false,
     "no-empty-interface": false,
     "no-construct": true,
     "no-debugger": true,

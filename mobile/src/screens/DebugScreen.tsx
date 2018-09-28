@@ -1,10 +1,9 @@
 import { inject, observer } from 'mobx-react';
-import { Button, Container, Content, Text, View, Header, Title, Body, Toast } from 'native-base';
+import { Button, Container, Content, Text, View, Toast } from 'native-base';
 import React, { Component } from 'react';
 import { NavigationScreenProp } from 'react-navigation';
 import { GrpcService, GrpcCore } from '../services';
 import { StyleSheet } from 'react-native';
-import { API_URL } from '../env';
 
 interface DebugScreenProps {
     navigation: NavigationScreenProp<{}, {}>;
@@ -12,18 +11,7 @@ interface DebugScreenProps {
     grpcCore: GrpcCore;
 }
 
-function log(...args) {
-    // tslint:disable-next-line:no-console
-    console.log(...args);
-}
-
-function success(text: string) {
-    Toast.show({type: 'success', text});
-}
-
-function error(text: string) {
-    Toast.show({type: 'danger', text});
-}
+const API_URL = 'localhost:10000';
 
 @inject(GrpcCore.injectKey, GrpcService.injectKey)
 @observer
@@ -32,9 +20,10 @@ export class DebugScreen extends Component<DebugScreenProps> {
 
     async componentDidMount() {
         try {
+            console.log('api', API_URL);
             await this.props.grpcCore.initialize(API_URL, false, '');
         } catch (err) {
-            error(err);
+            this.error(err);
         }
     }
 
@@ -46,9 +35,9 @@ export class DebugScreen extends Component<DebugScreenProps> {
         const { grpcService } = this.props;
         try {
             const rsp = await grpcService.ping({ message: `Ping ${Date.now()}` });
-            success(rsp.message);
+            this.success(rsp.message);
         } catch (err) {
-            error(err);
+            this.error(err);
         }
     }
 
@@ -56,18 +45,18 @@ export class DebugScreen extends Component<DebugScreenProps> {
         const { grpcService } = this.props;
         const stream = grpcService.serverStream({ message: `Ping ${Date.now()}` });
         stream.on('recv', (data) => {
-            log('data', data);
-            success(data.message);
+            this.log('data', data);
+            this.success(data.message);
         });
         stream.on('error', (err) => {
-            log('error', err);
+            this.log('error', err);
         });
         stream.on('end', () => {
-            log('end');
+            this.log('end');
         });
 
         setTimeout(() => {
-            log('close server stream');
+            this.log('close server stream');
             stream.emit('close');
         }, 3000);
     }
@@ -77,19 +66,19 @@ export class DebugScreen extends Component<DebugScreenProps> {
         const stream = grpcService.clientStream();
         for (let i = 0; i < 3; i++) {
             setTimeout(() => {
-                log('send client stream');
+                this.log('send client stream');
                 stream.emit('send', { message: `Ping ${Date.now()}` });
             }, 1000 * i);
         }
         stream.on('error', (err) => {
-            log('error', err);
+            this.log('error', err);
         });
         stream.on('end', () => {
-            log('end');
+            this.log('end');
         });
 
         setTimeout(() => {
-            log('close client stream');
+            this.log('close client stream');
             stream.emit('close');
         }, 3000);
     }
@@ -98,21 +87,21 @@ export class DebugScreen extends Component<DebugScreenProps> {
         const { grpcService } = this.props;
         const stream = grpcService.bidiStream();
         stream.on('recv', (data) => {
-            log('recv data', data);
-            success(data.message);
+            this.log('recv data', data);
+            this.success(data.message);
             // let's acknowledge message
             stream.emit('send', { message: 'OK' });
         });
 
         stream.on('error', (err) => {
-            log('error', err);
+            this.log('error', err);
         });
         stream.on('end', () => {
-            log('end');
+            this.log('end');
         });
 
         setTimeout(() => {
-            log('close bidi stream');
+            this.log('close bidi stream');
             stream.emit('close');
         }, 5000);
     }
@@ -120,11 +109,6 @@ export class DebugScreen extends Component<DebugScreenProps> {
     render() {
         return (
             <Container>
-                <Header>
-                    <Body>
-                        <Title>Native gRPC</Title>
-                    </Body>
-                </Header>
                 <Content padder>
                     <View flex={1} flexWrap='wrap' flexDirection='row'>
                         <Button small style={styles.actionBtn} onPress={this.pingGRPC}>
@@ -143,6 +127,18 @@ export class DebugScreen extends Component<DebugScreenProps> {
                 </Content>
             </Container>
         );
+    }
+
+    log(...args) {
+        console.log(...args);
+    }
+    
+    success(text: string) {
+        Toast.show({text, type: 'success'});
+    }
+    
+    error(err: Error) {
+        Toast.show({text: err.message, type: 'danger'});
     }
 }
 
