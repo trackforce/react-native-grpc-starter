@@ -12,7 +12,7 @@ import {
     RPCBidiStreamCall
 } from 'protobufjs';
 import { Buffer } from 'buffer';
-// import { NativeEventEmitter, NativeModules } from 'react-native';
+import { NativeEventEmitter, NativeModules } from 'react-native';
 
 interface GrpcMetadata {
     [K: string]: string;

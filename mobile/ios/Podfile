@@ -6,7 +6,7 @@ target 'mobile' do
   use_frameworks!
   # use_modular_headers!
 
-  # Pods for mpost
+  # Pods for mobile
   pod 'SwiftGRPC', :git => 'https://github.com/trackforce/grpc-swift', :tag => '0.5.0'
 
 end
