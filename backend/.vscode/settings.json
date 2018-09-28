@@ -1,0 +1,5 @@
+{
+    "go.gopath": "${workspaceFolder}",
+    "go.lintTool": "revive",
+    "go.lintFlags": ["-config=${workspaceFolder}/revive.toml"]
+}

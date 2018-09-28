@@ -1,0 +1,5 @@
+{
+    "go.gopath": "${workspaceFolder}/backend",
+    "go.lintTool": "revive",
+    "go.lintFlags": ["-config=${workspaceFolder}/backend/revive.toml"]
+}
