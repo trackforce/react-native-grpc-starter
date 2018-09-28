@@ -1,0 +1,39 @@
+variables:
+  LC_ALL: "en_US.UTF-8"
+  LANG: "en_US.UTF-8"
+
+cache:
+  paths:
+  - node_modules/
+
+before_script:
+  - yarn install
+
+stages:
+  - test
+  - deploy
+
+test:
+  image: node:8.9.1
+  script:
+    - yarn lint
+    - yarn test
+
+deploy_staging:
+  stage: deploy
+  before_script:
+    - bundle install
+  artifacts:
+    paths:
+      - ios/fastlane/screenshots
+      - ios/fastlane/logs
+  script:
+    - echo "Deploy to TestFlight staging"
+    - cd ios
+    - bundle exec fastlane beta
+  tags:
+    - ios
+  environment:
+    name: staging
+  only:
+    - /^release-*/
