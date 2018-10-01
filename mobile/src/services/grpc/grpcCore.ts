@@ -52,7 +52,7 @@ export enum GrpcEvents {
 type NativeEventEmitterFactory = () => EventEmitter;
 
 /**
- * GrpcHandler is resposible for communicating with GrpcNative module.
+ * GrpcCore is resposible for communicating with GrpcNative module.
  * Also it adds common abstractions like middlewares.
  */
 export class GrpcCore {
