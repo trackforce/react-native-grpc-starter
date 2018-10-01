@@ -1,4 +1,4 @@
-# react-native-grpc-starter
+# React Native gRPC Starter
 
 This is a starter template for gRPC and React Native. It contains backend (Golang) and mobile (React Native) folders.
 
