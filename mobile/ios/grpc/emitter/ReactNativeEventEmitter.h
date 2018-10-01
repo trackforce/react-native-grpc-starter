@@ -1,5 +1,5 @@
 #import <Foundation/Foundation.h>
 
-@interface ReactNativeEventEmitter : NSObject
+@interface RNGrpcEventEmitter : NSObject
 
 @end

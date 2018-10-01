@@ -1,7 +1,7 @@
 import Foundation
 
-@objc(ReactNativeEventEmitter)
-open class ReactNativeEventEmitter: RCTEventEmitter {
+@objc(RNGrpcEventEmitter)
+open class RNGrpcEventEmitter: RCTEventEmitter {
   
   override init() {
     super.init()

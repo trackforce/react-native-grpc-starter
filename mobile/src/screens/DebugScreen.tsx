@@ -11,21 +11,10 @@ interface DebugScreenProps {
     grpcCore: GrpcCore;
 }
 
-const API_URL = 'localhost:10000';
-
-@inject(GrpcCore.injectKey, GrpcService.injectKey)
+@inject(GrpcService.injectKey)
 @observer
 export class DebugScreen extends Component<DebugScreenProps> {
     static readonly navigationOptions = { title: 'Debug' };
-
-    async componentDidMount() {
-        try {
-            console.log('api', API_URL);
-            await this.props.grpcCore.initialize(API_URL, false, '');
-        } catch (err) {
-            this.error(err);
-        }
-    }
 
     openDrawer = () => {
         this.props.navigation.openDrawer();

@@ -11,13 +11,13 @@ class GrpcEventEmitter {
   /// Shared Instance.
   public static var instance = GrpcEventEmitter()
 
-  // ReactNativeEventEmitter is instantiated by React Native with the bridge.
-  private static var eventEmitter: ReactNativeEventEmitter!
+  // RNGrpcEventEmitter is instantiated by React Native with the bridge.
+  private static var eventEmitter: RNGrpcEventEmitter!
 
   private init() {}
 
   // When React Native instantiates the emitter it is registered here.
-  func registerEventEmitter(eventEmitter: ReactNativeEventEmitter) {
+  func registerEventEmitter(eventEmitter: RNGrpcEventEmitter) {
     GrpcEventEmitter.eventEmitter = eventEmitter
   }
   

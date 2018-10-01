@@ -12,7 +12,7 @@ import {
     RPCBidiStreamCall
 } from 'protobufjs';
 import { Buffer } from 'buffer';
-import { NativeEventEmitter, NativeModules } from 'react-native';
+import { EventEmitter, EventSubscription } from 'react-native';
 
 interface GrpcMetadata {
     [K: string]: string;
@@ -43,26 +43,33 @@ interface GrpcNativeStreamEvent {
     data: any;
 }
 
-enum GrpcEvents {
+export enum GrpcEvents {
     grpcStreamReceive = 'grpcStreamReceive',
     grpcStreamError = 'grpcStreamError',
     grpcStreamEnd = 'grpcStreamEnd'
 }
+
+type NativeEventEmitterFactory = () => EventEmitter;
 
 /**
  * GrpcHandler is resposible for communicating with GrpcNative module.
  * Also it adds common abstractions like middlewares.
  */
 export class GrpcCore {
-    static readonly injectKey = 'grpcCore';
-
     private readonly _middlewares: MiddlewareFn[] = [];
     private _middlewareChain: MiddlewareFn = null;
     private _isInitialized = false;
     private _streamHandlers = new Map<string, StreamHandler>();
     private readonly _notInitializedError = new Error('GrpcHandler is not initialized');
+    private readonly _nativeEventEmitter: EventEmitter;
+    private _nativeEventSubscriptions: EventSubscription[] = [];
 
-    constructor(public readonly grpcNative: GrpcNative) { }
+    constructor(
+        public readonly grpcNative: GrpcNative,
+        nativeEventEmitterFactory: NativeEventEmitterFactory
+    ) {
+        this._nativeEventEmitter = nativeEventEmitterFactory();
+    }
 
     async initialize(apiUrl: string, secure: boolean, certFile: string): Promise<void> {
         await this.grpcNative.initialize(apiUrl, secure, certFile);
@@ -123,33 +130,34 @@ export class GrpcCore {
      * Listen to GrpcNative stream events
      */
     private _initializeListeners() {
-        const nativeStream = new NativeEventEmitter(NativeModules.ReactNativeEventEmitter);
-        // TODO: unsubscrbibe !!!
-        nativeStream.addListener(GrpcEvents.grpcStreamReceive, (e: GrpcNativeStreamEvent) => {
-            if (!e) {
-                return;
-            }
+        this._nativeEventSubscriptions.forEach((sub) => sub.remove());
+        this._nativeEventSubscriptions = [];
+
+        const grpcStreamReceive = this._nativeEventEmitter.addListener(GrpcEvents.grpcStreamReceive, (e: GrpcNativeStreamEvent) => {
             const h = this._streamHandlers.get(e.method);
             if (h) {
                 const rspBytes = Buffer.from(e.data, 'base64');
-                h.emitter.emit('recv', h.decodeFn(rspBytes));
+                this._emitStreamRecv(h, h.decodeFn(rspBytes));
             }
         });
+        this._nativeEventSubscriptions.push(grpcStreamReceive);
 
-        nativeStream.addListener(GrpcEvents.grpcStreamError, (e: GrpcNativeStreamEvent) => {
+        const grpcStreamError = this._nativeEventEmitter.addListener(GrpcEvents.grpcStreamError, (e: GrpcNativeStreamEvent) => {
             const h = this._streamHandlers.get(e.method);
             if (h) {
-                h.emitter.emit('error', e.data);
+                this._emitStreamError(h, e.data);
             }
         });
+        this._nativeEventSubscriptions.push(grpcStreamError);
 
-        nativeStream.addListener(GrpcEvents.grpcStreamEnd, (e: GrpcNativeStreamEvent) => {
+        const grpcStreamEnd = this._nativeEventEmitter.addListener(GrpcEvents.grpcStreamEnd, (e: GrpcNativeStreamEvent) => {
             const h = this._streamHandlers.get(e.method);
             if (h) {
-                h.emitter.emit('end', true);
-                this._streamHandlers.delete(e.method);
+                this._emitStreamEnd(h);
+                this._removeStreamHandler(h);
             }
         });
+        this._nativeEventSubscriptions.push(grpcStreamEnd);
     }
 
     private _createRcpUnaryImpl(serviceName: string): RPCUnaryCall {
@@ -180,13 +188,14 @@ export class GrpcCore {
 
             const reqBase64String = Buffer.from(requestData).toString('base64');
             this.grpcNative.makeServerStream(methodName, reqBase64String).catch((err) => {
-                this._endStream(h, err);
+                this._emitStreamError(h, err);
+                this._removeStreamHandler(h);
             });
             h.emitter.on('close', () => {
                 this.grpcNative.closeServerStream(methodName).catch((err) => {
-                    this._endStream(h, `closeServerStream: ${err}`);
+                    this._emitStreamError(h, `closeServerStream: ${err}`);
                 });
-                this._streamHandlers.delete(methodName);
+                this._removeStreamHandler(h);
             });
             return h.emitter;
         };
@@ -203,21 +212,21 @@ export class GrpcCore {
             this._streamHandlers.set(methodName, h);
 
             this.grpcNative.makeClientStream(methodName).catch((err) => {
-                this._endStream(h, `makeClientStream: ${err}`);
+                this._emitStreamError(h, `makeClientStream: ${err}`);
             });
 
             h.emitter.on('send', (data) => {
                 const reqBase64String = Buffer.from(encodeFn(data)).toString('base64');
                 this.grpcNative.sendClientStream(methodName, reqBase64String).catch((err) => {
-                    this._endStream(h, `sendClientStream: ${err}`);
+                    this._emitStreamError(h, `sendClientStream: ${err}`);
                 });
             });
 
             h.emitter.on('close', () => {
                 this.grpcNative.closeClientStream(methodName).catch((err) => {
-                    this._endStream(h, `closeClientStream: ${err}`);
+                    this._emitStreamError(h, `closeClientStream: ${err}`);
                 });
-                this._streamHandlers.delete(methodName);
+                this._removeStreamHandler(h);
             });
             return h.emitter;
         };
@@ -234,29 +243,39 @@ export class GrpcCore {
             this._streamHandlers.set(methodName, h);
 
             this.grpcNative.makeBidiStream(methodName).catch((err) => {
-                this._endStream(h, err);
+                this._emitStreamError(h, err);
             });
 
             h.emitter.on('send', (data) => {
                 const reqBase64String = Buffer.from(encodeFn(data)).toString('base64');
                 this.grpcNative.sendBidiStream(methodName, reqBase64String).catch((err) => {
-                    this._endStream(h, err);
+                    this._emitStreamError(h, err);
                 });
             });
 
             h.emitter.on('close', () => {
                 this.grpcNative.closeBidiStream(methodName).catch((err) => {
-                    this._endStream(h, err);
+                    this._emitStreamError(h, err);
                 });
-                this._streamHandlers.delete(methodName);
+                this._removeStreamHandler(h);
             });
             return h.emitter;
         };
     }
 
-    private _endStream(h: StreamHandler, err: any) {
+    private _emitStreamRecv(h: StreamHandler, data: any) {
+        h.emitter.emit('recv', data);
+    }
+
+    private _emitStreamError(h: StreamHandler, err: any) {
         h.emitter.emit('error', err);
+    }
+
+    private _emitStreamEnd(h: StreamHandler) {
         h.emitter.emit('end', true);
+    }
+
+    private _removeStreamHandler(h: StreamHandler) {
         this._streamHandlers.delete(h.method);
     }
 }

@@ -40,6 +40,7 @@ class GrpcNative: NSObject, RNGrpcBridge {
   static var clientStreamHandlers: [String: RNClientCallClientStreaming<RNProtoMessageRequest, RNProtoMessageReply>] = [:]
   static var bidiStreamHandlers: [String: RNClientCallBidirectionalStreaming<RNProtoMessageRequest, RNProtoMessageReply>] = [:]
   static var pendingServerStreamCancel: [String] = []
+  let sem = DispatchSemaphore(value: 1)
   
   /// Initialize grpc channel
   @objc func initialize(_ apiUrl: String, secure: Bool, certFile: String, resolve: RCTPromiseResolveBlock, reject: RCTPromiseRejectBlock) -> Void {
@@ -99,27 +100,31 @@ class GrpcNative: NSObject, RNGrpcBridge {
       var running = true
       while running {
         do {
-          if GrpcNative.pendingServerStreamCancel.contains(method as String) {
-            call.cancel()
+          if GrpcNative.pendingServerStreamCancel.contains(method) {
+            sem.wait()
             GrpcNative.pendingServerStreamCancel = GrpcNative.pendingServerStreamCancel.filter{ $0 != method }
+            sem.signal()
+            call.cancel()
             return
           }
           let response = try stream._receive(timeout: .distantFuture)
           if let response = response {
-            GrpcEventEmitter.instance.grpcStreamReceive(method: method as String, data: response.base64Data)
+            GrpcEventEmitter.instance.grpcStreamReceive(method: method, data: response.base64Data)
           } else {
             running = false
-            GrpcEventEmitter.instance.grpcStreamEnd(method: method as String, data: "")
+            GrpcEventEmitter.instance.grpcStreamEnd(method: method, data: "")
           }
         } catch {
           running = false
-          GrpcEventEmitter.instance.grpcStreamError(method: method as String, data: error.localizedDescription)
+          GrpcEventEmitter.instance.grpcStreamError(method: method, data: error.localizedDescription)
+          GrpcEventEmitter.instance.grpcStreamEnd(method: method, data: "")
+          call.cancel()
         }
       }
     } catch RPCError.callError(let err) {
-      GrpcEventEmitter.instance.grpcStreamError(method: method as String, data: err.statusMessage ?? "")
+      GrpcEventEmitter.instance.grpcStreamError(method: method, data: err.statusMessage ?? "")
     } catch {
-      GrpcEventEmitter.instance.grpcStreamError(method: method as String, data: error.localizedDescription)
+      GrpcEventEmitter.instance.grpcStreamError(method: method, data: error.localizedDescription)
     }
   }
   
@@ -127,7 +132,9 @@ class GrpcNative: NSObject, RNGrpcBridge {
     do {
       try checkInitialized()
       if !GrpcNative.pendingServerStreamCancel.contains(method as String) {
+        sem.wait()
         GrpcNative.pendingServerStreamCancel.append(method as String)
+        sem.signal()
       }
       
       resolve(true)
@@ -142,7 +149,9 @@ class GrpcNative: NSObject, RNGrpcBridge {
       let call = GrpcNative.channel!.makeCall(method as String)
       let stream = RNClientCallClientStreaming<RNProtoMessageRequest, RNProtoMessageReply>(call:call)
       _ = try stream.start(metadata: GrpcNative.metadata!) { _ in }
+      sem.wait()
       GrpcNative.clientStreamHandlers[method as String] = stream
+      sem.signal()
       resolve("")
     } catch RPCError.callError(let err) {
       reject(String(err.statusCode.rawValue), err.statusMessage, err as? Error)
@@ -203,28 +212,31 @@ class GrpcNative: NSObject, RNGrpcBridge {
       let call = GrpcNative.channel!.makeCall(method as String)
       let stream = RNClientCallBidirectionalStreaming<RNProtoMessageRequest, RNProtoMessageReply>(call:call)
       _ = try stream.start(metadata: GrpcNative.metadata!) { _ in }
+      sem.wait()
       GrpcNative.bidiStreamHandlers[method as String] = stream
+      sem.signal()
       
       var running = true
       while running {
         do {
           let response = try stream._receive(timeout: .distantFuture)
           if let response = response {
-            GrpcEventEmitter.instance.grpcStreamReceive(method: method as String, data: response.base64Data)
+            GrpcEventEmitter.instance.grpcStreamReceive(method: method, data: response.base64Data)
           } else {
             running = false
-            GrpcEventEmitter.instance.grpcStreamEnd(method: method as String, data: "")
+            GrpcEventEmitter.instance.grpcStreamEnd(method: method, data: "")
           }
         } catch {
           running = false
-          GrpcEventEmitter.instance.grpcStreamError(method: method as String, data: error.localizedDescription)
-          GrpcEventEmitter.instance.grpcStreamEnd(method: method as String, data: "")
+          GrpcEventEmitter.instance.grpcStreamError(method: method, data: error.localizedDescription)
+          GrpcEventEmitter.instance.grpcStreamEnd(method: method, data: "")
+          call.cancel()
         }
       }
     } catch RPCError.callError(let err) {
-      GrpcEventEmitter.instance.grpcStreamError(method: method as String, data: err.statusMessage ?? "")
+      GrpcEventEmitter.instance.grpcStreamError(method: method , data: err.statusMessage ?? "")
     } catch {
-      GrpcEventEmitter.instance.grpcStreamError(method: method as String, data: error.localizedDescription)
+      GrpcEventEmitter.instance.grpcStreamError(method: method, data: error.localizedDescription)
     }
   }
   
