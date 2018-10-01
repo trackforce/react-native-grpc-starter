@@ -14,3 +14,5 @@ make start
 cd mobile
 yarn run-ios
 ```
+
+![alt text](https://github.com/trackforce/react-native-grpc-starter/blob/master/demo.png)
